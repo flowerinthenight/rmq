@@ -1,4 +1,4 @@
-[![Build Status](https://api.travis-ci.org/flowerinthenight/rmq.svg)](https://travis-ci.org/flowerinthenight/rmq)
+[![Build Status](https://travis-ci.org/flowerinthenight/rmq.svg?branch=master)](https://travis-ci.org/flowerinthenight/rmq)
 
 # License
 
