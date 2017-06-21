@@ -1,5 +1,3 @@
-// Copyright © 2017 uLimit. All rights reserved.
-
 package rmq
 
 import (
@@ -67,6 +65,11 @@ type exchangeQueueBinding struct {
 
 // Setup exchange/queue bindings based on provided configs.
 func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
+	// At the very least, we should have an exchange option to be able to send to an exchange.
+	if e.exchangeOpt == nil {
+		return fmt.Errorf("exchange option not provided")
+	}
+
 	e.logger.Println("[info] setup exchange:", e.exchangeOpt.Name, e.exchangeOpt.Type)
 	err := ch.ExchangeDeclare(
 		e.exchangeOpt.Name,       // name of the exchange
@@ -83,24 +86,32 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 		return err
 	}
 
-	durable := e.queueOpt.Durable
+	if e.queueOpt == nil {
+		return nil
+	}
+
+	autoDelete := e.queueOpt.AutoDelete
 	if e.queueOpt.QueueName == "" {
-		durable = false
+		autoDelete = true
 	}
 
 	e.logger.Println("[info] setup queue:", e.queueOpt.QueueName)
 	queue, err := ch.QueueDeclare(
-		e.queueOpt.QueueName,  // name of the queue
-		durable,               // durable
-		e.queueOpt.AutoDelete, // delete when usused
-		e.queueOpt.Exclusive,  // exclusive
-		e.queueOpt.NoWait,     // no wait
-		e.queueOpt.Args,       // arguments
+		e.queueOpt.QueueName, // name of the queue
+		e.queueOpt.Durable,   // durable
+		autoDelete,           // delete when unused
+		e.queueOpt.Exclusive, // exclusive
+		e.queueOpt.NoWait,    // no wait
+		e.queueOpt.Args,      // arguments
 	)
 
 	if err != nil {
 		e.logger.Println("[error]", err)
 		return err
+	}
+
+	if e.queueBindOpt == nil {
+		return fmt.Errorf("queue bind option not provided")
 	}
 
 	e.logger.Println(fmt.Sprintf("[info] queue (%q %d messages, %d consumers), binding to exchange (key %q)",
@@ -301,6 +312,18 @@ func (b *RabbitMqBroker) AddBinding(exchangeOpt *ExchangeOptions, queueOpt *Queu
 	}
 
 	return id, nil
+}
+
+func (b *RabbitMqBroker) Send(id, key string, mandatory, immediate bool, payload []byte) error {
+	bind, ok := b.bindings[id]
+	if !ok {
+		return fmt.Errorf("binding not found")
+	}
+
+	return b.channel.Publish(bind.exchangeOpt.Name, key, mandatory, immediate, amqp.Publishing{
+		ContentType: "text/plain",
+		Body:        payload,
+	})
 }
 
 func (b *RabbitMqBroker) Close() {
