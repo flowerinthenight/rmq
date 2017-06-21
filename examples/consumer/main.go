@@ -3,6 +3,8 @@ package main
 import (
 	"log"
 	"os"
+
+	"github.com/flowerinthenight/rmq"
 )
 
 func main() {
@@ -14,5 +16,4 @@ func main() {
 		Password: rmqpass,
 		Vhost:    "/",
 	}, log.New(os.Stderr, "RMQ_[TEMP] ", log.Lmicroseconds))
-
 }

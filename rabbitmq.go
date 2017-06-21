@@ -1,6 +1,6 @@
 // Copyright © 2017 uLimit. All rights reserved.
 
-package rabbitmq
+package rmq
 
 import (
 	"fmt"
