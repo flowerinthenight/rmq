@@ -82,7 +82,7 @@ func main() {
 		&rmq.ConsumeOptions{
 			ClientTag: "consumer2",
 			FnCallback: func(b []byte) error {
-				log.Println(fmt.Sprintf("[qtest2] payload: %s", b))
+				log.Println(fmt.Sprintf("[autogen-queue] payload: %s", b))
 				return nil
 			},
 		})
