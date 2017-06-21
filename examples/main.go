@@ -19,13 +19,15 @@ func main() {
 	})
 
 	// The usual RabbitMQ defaults.
-	b := rmq.New(&rmq.Config{
-		Host:     "localhost",
-		Port:     5672,
-		Username: "guest",
-		Password: "guest",
-		Vhost:    "/",
-	}, log.New(os.Stderr, "RMQ-[LOG] ", log.Lmicroseconds))
+	b := rmq.New(
+		&rmq.Config{
+			Host:     "localhost",
+			Port:     5672,
+			Username: "guest",
+			Password: "guest",
+			Vhost:    "/",
+		},
+		log.New(os.Stderr, "RMQ-[LOG] ", log.Lmicroseconds))
 
 	err := b.Connect()
 	if err != nil {
@@ -37,22 +39,26 @@ func main() {
 	// Create a binding for exchange 'test' and queue 'qtest1'. We are providing all
 	// the options here so it can send and consume messages at the same time.
 	// The return string is the binding id.
-	bind1, err := b.AddBinding(&rmq.ExchangeOptions{
-		Name:    "test",
-		Type:    "direct",
-		Durable: true,
-	}, &rmq.QueueOptions{
-		QueueName: "qtest1",
-		Durable:   true,
-	}, &rmq.QueueBindOptions{
-		RoutingKey: "rk1",
-	}, &rmq.ConsumeOptions{
-		ClientTag: "consumer1",
-		FnCallback: func(b []byte) error {
-			log.Println(fmt.Sprintf("[qtest1] payload: %s", b))
-			return nil
+	bind1, err := b.AddBinding(
+		&rmq.ExchangeOptions{
+			Name:    "test",
+			Type:    "direct",
+			Durable: true,
 		},
-	})
+		&rmq.QueueOptions{
+			QueueName: "qtest1",
+			Durable:   true,
+		},
+		&rmq.QueueBindOptions{
+			RoutingKey: "rk1",
+		},
+		&rmq.ConsumeOptions{
+			ClientTag: "consumer1",
+			FnCallback: func(b []byte) error {
+				log.Println(fmt.Sprintf("[qtest1] payload: %s", b))
+				return nil
+			},
+		})
 
 	if err != nil {
 		log.Fatalln(err)
@@ -61,21 +67,25 @@ func main() {
 	// Create a binding for exchange 'test' and a queue with auto-generated name. We are
 	// also providing all the options here so it can send and consume messages at the same time.
 	// The return string is the binding id.
-	bind2, err := b.AddBinding(&rmq.ExchangeOptions{
-		Name:    "test",
-		Type:    "direct",
-		Durable: true,
-	}, &rmq.QueueOptions{
-		QueueName: "", // auto-generate queue name
-	}, &rmq.QueueBindOptions{
-		RoutingKey: "rk2",
-	}, &rmq.ConsumeOptions{
-		ClientTag: "consumer2",
-		FnCallback: func(b []byte) error {
-			log.Println(fmt.Sprintf("[qtest2] payload: %s", b))
-			return nil
+	bind2, err := b.AddBinding(
+		&rmq.ExchangeOptions{
+			Name:    "test",
+			Type:    "direct",
+			Durable: true,
 		},
-	})
+		&rmq.QueueOptions{
+			QueueName: "", // auto-generate queue name
+		},
+		&rmq.QueueBindOptions{
+			RoutingKey: "rk2",
+		},
+		&rmq.ConsumeOptions{
+			ClientTag: "consumer2",
+			FnCallback: func(b []byte) error {
+				log.Println(fmt.Sprintf("[qtest2] payload: %s", b))
+				return nil
+			},
+		})
 
 	if err != nil {
 		log.Fatalln(err)
