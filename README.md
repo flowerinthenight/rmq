@@ -2,7 +2,7 @@
 
 # Overview
 
-A simple wrapper library to [streadway/amqp](https://github.com/streadway/amqp) with support for reconnection.
+A simple wrapper to [streadway/amqp](https://github.com/streadway/amqp) for RabbitMQ with support for reconnection.
 
 # License
 
