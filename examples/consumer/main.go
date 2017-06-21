@@ -8,12 +8,11 @@ import (
 )
 
 func main() {
-	log.Println("hello")
 	b := rmq.New(&rmq.Config{
 		Host:     rmqhost,
 		Port:     port,
 		Username: rmquser,
 		Password: rmqpass,
 		Vhost:    "/",
-	}, log.New(os.Stderr, "RMQ_[TEMP] ", log.Lmicroseconds))
+	}, log.New(os.Stderr, "RMQ-[LOG] ", log.Lmicroseconds))
 }
