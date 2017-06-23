@@ -6,7 +6,7 @@ A simple wrapper to [streadway/amqp](https://github.com/streadway/amqp) for Rabb
 
 ### Usage
 
-The library maintains a single connection and channel. It also maintains a map of bindings of exchanges and queues. Each binding can be configured to be a producer, a consumer, or both.
+The library maintains a single connection and channel. It also maintains a map of bindings of exchanges and queues added by the user. Each binding can be configured to be a producer, a consumer, or both.
 
 See the 'examples' directory for a simple implementation.
 
