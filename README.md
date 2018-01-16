@@ -58,7 +58,7 @@ bindId, err := c.AddBinding(&rmq.BindConfig{
 c.Send(bindId, "rk1", []byte("hello world"))
 ```
 
-You can also create a send-only binding:
+You can also create a send-only binding with:
 
 ```go
 bindId, err := c.AddBinding(&rmq.BindConfig{
