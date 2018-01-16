@@ -47,9 +47,8 @@ bindId, err := c.AddBinding(&rmq.BindConfig{
 		// messages from the specified exchange/queue
 		ConsumeOpt: &rmq.ConsumeOptions{
 			ClientTag:  "consumer1",
-			FnCallback: func (b []byte) error {
+			FnCallback: func (b []byte) {
 				log.Printf("payload: %s", b)
-				return nil
 			},
 		},
 })
