@@ -302,12 +302,6 @@ func (b *RabbitMqBroker) AddBinding(bc *BindConfig) (string, error) {
 	return id, nil
 }
 
-type SendConfig struct {
-	Mandatory   bool
-	Immediate   bool
-	PublishConf *amqp.Publishing
-}
-
 func (b *RabbitMqBroker) Send(id, key string, payload []byte) error {
 	bind, ok := b.bindings[id]
 	if !ok {
@@ -323,6 +317,12 @@ func (b *RabbitMqBroker) Send(id, key string, payload []byte) error {
 			Body:        payload,
 		},
 	)
+}
+
+type SendConfig struct {
+	Mandatory   bool
+	Immediate   bool
+	PublishConf *amqp.Publishing
 }
 
 func (b *RabbitMqBroker) SendWithConfig(id, key string, sc SendConfig) error {
