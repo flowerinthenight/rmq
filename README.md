@@ -52,12 +52,8 @@ bindId, err := c.AddBinding(&rmq.BindConfig{
 			},
 		},
 })
-```
 
-To send a message using the binding above:
-
-```go
-// send message to binding `bindId`
+// send a message using the binding above
 c.Send(bindId, "rk1", []byte("hello world"))
 ```
 
