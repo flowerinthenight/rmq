@@ -12,6 +12,7 @@ First, create the connection object with:
 
 
 ```go
+// replace the values below with your own
 c := rmq.New(&rmq.Config{
 		Host:     "localhost",
 		Port:     5672,
