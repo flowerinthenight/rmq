@@ -302,16 +302,40 @@ func (b *RabbitMqBroker) AddBinding(bc *BindConfig) (string, error) {
 	return id, nil
 }
 
-func (b *RabbitMqBroker) Send(id, key string, mandatory, immediate bool, payload []byte) error {
+type SendConfig struct {
+	Mandatory   bool
+	Immediate   bool
+	PublishConf *amqp.Publishing
+}
+
+func (b *RabbitMqBroker) Send(id, key string, payload []byte) error {
 	bind, ok := b.bindings[id]
 	if !ok {
 		return fmt.Errorf("binding not found")
 	}
 
-	return b.channel.Publish(bind.exchangeOpt.Name, key, mandatory, immediate, amqp.Publishing{
-		ContentType: "text/plain",
-		Body:        payload,
-	})
+	return b.channel.Publish(bind.exchangeOpt.Name,
+		key,
+		false,
+		false,
+		amqp.Publishing{
+			ContentType: "text/plain",
+			Body:        payload,
+		},
+	)
+}
+
+func (b *RabbitMqBroker) SendWithConfig(id, key string, sc SendConfig) error {
+	bind, ok := b.bindings[id]
+	if !ok {
+		return fmt.Errorf("binding not found")
+	}
+
+	if sc.PublishConf == nil {
+		return fmt.Errorf("publish config should not be nil")
+	}
+
+	return b.channel.Publish(bind.exchangeOpt.Name, key, sc.Mandatory, sc.Immediate, *sc.PublishConf)
 }
 
 func (b *RabbitMqBroker) Close() {

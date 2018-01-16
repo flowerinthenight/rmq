@@ -44,13 +44,15 @@ func main() {
 	// The return string is the binding id.
 	bindId, err := b.AddBinding(&rmq.BindConfig{
 		ExchangeOpt: &rmq.ExchangeOptions{
-			Name:    "test",
-			Type:    "direct",
-			Durable: false,
+			Name:       "test-exchange",
+			Type:       "direct",
+			Durable:    false,
+			AutoDelete: true,
 		},
 		QueueOpt: &rmq.QueueOptions{
-			QueueName: "qtest1",
-			Durable:   false,
+			QueueName:  "queue1",
+			Durable:    false,
+			AutoDelete: true,
 		},
 		QueueBindOpt: &rmq.QueueBindOptions{
 			RoutingKey: "rk1",
@@ -68,8 +70,6 @@ func main() {
 			b.Send(
 				bindId, // binding id to send to
 				"rk1",  // route key
-				false,  // is mandatory
-				false,  // is immediate
 				[]byte(fmt.Sprintf("for qtest1: %s", time.Now().String())), // message
 			)
 
