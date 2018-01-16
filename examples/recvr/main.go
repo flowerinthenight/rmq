@@ -70,9 +70,8 @@ func main() {
 	<-term
 }
 
-func ProcessMessage(b []byte) error {
+func ProcessMessage(b []byte) {
 	log.Printf("[qtest1] payload: %s", b)
-	return nil
 }
 
 func handleSignal(exit bool, callback func(s os.Signal)) {
