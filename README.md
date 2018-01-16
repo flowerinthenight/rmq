@@ -42,8 +42,8 @@ bindId, err := c.AddBinding(&rmq.BindConfig{
 		QueueBindOpt: &rmq.QueueBindOptions{
 			RoutingKey: "rk1",
 		},
-		// when `ConsumeOpt` is provided, this binding is able to receive messages from
-		// the specified exchange/queue
+		// when `ConsumeOpt` is provided, this binding is able to receive
+		// messages from the specified exchange/queue
 		ConsumeOpt: &rmq.ConsumeOptions{
 			ClientTag:  "consumer1",
 			FnCallback: func (b []byte) error {
@@ -52,6 +52,13 @@ bindId, err := c.AddBinding(&rmq.BindConfig{
 			},
 		},
 })
+```
+
+To send a message using the binding above:
+
+```go
+// send message to binding `bindId`
+c.Send(bindId, "rk1", []byte("hello world"))
 ```
 
 See the [examples](./examples) directory for a simple implementation.
