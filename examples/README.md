@@ -4,7 +4,7 @@ This repo uses [dep](https://github.com/golang/dep) as its vendoring tool. You n
 $ dep ensure -v
 ```
 
-Then follow the following command sequences:
+Then follow the following commands:
 
 ```bash
 # you have to set the following environment variables with your own values
