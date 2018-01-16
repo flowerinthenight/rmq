@@ -61,6 +61,29 @@ To send a message using the binding above:
 c.Send(bindId, "rk1", []byte("hello world"))
 ```
 
+You can also create a send-only binding:
+
+```go
+bindId, err := c.AddBinding(&rmq.BindConfig{
+		ExchangeOpt: &rmq.ExchangeOptions{
+			Name:       "test-exchange",
+			Type:       "direct",
+			Durable:    false,
+			AutoDelete: true,
+		},
+		QueueOpt: &rmq.QueueOptions{
+			QueueName:  "queue1",
+			Durable:    false,
+			AutoDelete: true,
+		},
+		QueueBindOpt: &rmq.QueueBindOptions{
+			RoutingKey: "rk1",
+		},
+})
+
+c.Send(bindId, "rk1", []byte("hello world"))
+```
+
 See the [examples](./examples) directory for a simple implementation.
 
 ## License
