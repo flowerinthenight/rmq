@@ -10,5 +10,10 @@ go:
 #   - AMQP_URL=amqp://guest:guest@127.0.0.1:5672/
 
 before_install:
-- go get -v github.com/golang/dep
-- ${GOPATH}/bin/dep ensure -v
+- go get -u -v github.com/golang/dep/...
+
+install:
+- $GOPATH/bin/dep ensure -v
+
+script:
+- go test -v ./...
