@@ -19,9 +19,35 @@ c := rmq.New(&rmq.Config{
 		Password: "guest",
 		Vhost:    "/",
 })
+
+err := c.Connect()
+...
 ```
 
+Next, we will create a binding for a direct-type exchange `test-exchange` and queue `qtest` with:
 
+```go
+bindId, err := c.AddBinding(&rmq.BindConfig{
+		ExchangeOpt: &rmq.ExchangeOptions{
+			Name:       "test-exchange",
+			Type:       "direct",
+			Durable:    false,
+			AutoDelete: true,
+		},
+		QueueOpt: &rmq.QueueOptions{
+			QueueName:  "qtest",
+			Durable:    false,
+			AutoDelete: true,
+		},
+		QueueBindOpt: &rmq.QueueBindOptions{
+			RoutingKey: "rk1",
+		},
+		ConsumeOpt: &rmq.ConsumeOptions{
+			ClientTag:  "consumer1",
+			FnCallback: ProcessMessage,
+		},
+})
+```
 
 See the [examples](./examples) directory for a simple implementation.
 
