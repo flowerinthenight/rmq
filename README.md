@@ -13,10 +13,10 @@ The connection object can be initialized using the following code snippet:
 
 ```go
 c := rmq.New(&rmq.Config{
-		Host:     os.Getenv("RABBITMQ_HOST"),
-		Port:     port,
-		Username: os.Getenv("RABBITMQ_USER"),
-		Password: os.Getenv("RABBITMQ_PASS"),
+		Host:     "localhost",
+		Port:     5672,
+		Username: "guest",
+		Password: "guest",
 		Vhost:    "/",
 })
 ```
