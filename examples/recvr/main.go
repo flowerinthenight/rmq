@@ -40,33 +40,37 @@ func main() {
 	// Create a binding for exchange 'test' and queue 'qtest1'. We are providing all
 	// the options here so it can send and consume messages at the same time.
 	// The return string is the binding id.
-	_, err = b.AddBinding(&rmq.BindConfig{
-		&rmq.ExchangeOptions{
+	bindId, err := b.AddBinding(&rmq.BindConfig{
+		ExchangeOpt: &rmq.ExchangeOptions{
 			Name:    "test",
 			Type:    "direct",
 			Durable: false,
 		},
-		&rmq.QueueOptions{
+		QueueOpt: &rmq.QueueOptions{
 			QueueName: "qtest1",
 			Durable:   false,
 		},
-		&rmq.QueueBindOptions{
+		QueueBindOpt: &rmq.QueueBindOptions{
 			RoutingKey: "rk1",
 		},
-		&rmq.ConsumeOptions{
-			ClientTag: "consumer1",
-			FnCallback: func(b []byte) error {
-				log.Printf("[qtest1] payload: %s", b)
-				return nil
-			},
+		ConsumeOpt: &rmq.ConsumeOptions{
+			ClientTag:  "consumer1",
+			FnCallback: ProcessMessage,
 		},
 	})
+
+	log.Printf("binding added (id = %v)", bindId)
 
 	if err != nil {
 		log.Fatalln(err)
 	}
 
 	<-term
+}
+
+func ProcessMessage(b []byte) error {
+	log.Printf("[qtest1] payload: %s", b)
+	return nil
 }
 
 func handleSignal(exit bool, callback func(s os.Signal)) {

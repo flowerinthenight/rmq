@@ -42,7 +42,7 @@ func main() {
 	// Create a binding for exchange 'test' and queue 'qtest1'.
 	// We don't define ConsumeOpt since we only send messages.
 	// The return string is the binding id.
-	bind1, err := b.AddBinding(&rmq.BindConfig{
+	bindId, err := b.AddBinding(&rmq.BindConfig{
 		ExchangeOpt: &rmq.ExchangeOptions{
 			Name:    "test",
 			Type:    "direct",
@@ -57,6 +57,8 @@ func main() {
 		},
 	})
 
+	log.Printf("binding added (id = %v)", bindId)
+
 	if err != nil {
 		log.Fatalln(err)
 	}
@@ -64,10 +66,10 @@ func main() {
 	go func() {
 		for {
 			b.Send(
-				bind1, // binding id to send to
-				"rk1", // route key
-				false, // is mandatory
-				false, // is immediate
+				bindId, // binding id to send to
+				"rk1",  // route key
+				false,  // is mandatory
+				false,  // is immediate
 				[]byte(fmt.Sprintf("for qtest1: %s", time.Now().String())), // message
 			)
 
