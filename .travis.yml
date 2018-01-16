@@ -1,8 +1,7 @@
 language: go
 
 go:
-  - 1.8
-  - tip
+- 1.9.2
 
 # services:
 #   - rabbitmq
@@ -11,5 +10,5 @@ go:
 #   - AMQP_URL=amqp://guest:guest@127.0.0.1:5672/
 
 before_install:
-  - go get -v github.com/golang/dep
-  - ${GOPATH}/bin/dep ensure -v
+- go get -v github.com/golang/dep
+- ${GOPATH}/bin/dep ensure -v
