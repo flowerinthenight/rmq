@@ -44,7 +44,7 @@ type ConsumeOptions struct {
 	Exclusive  bool
 	NoWait     bool
 	Args       amqp.Table
-	FnCallback func([]byte) error
+	FnCallback func([]byte)
 }
 
 type exchangeQueueBinding struct {
@@ -148,7 +148,7 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 		for m := range d {
 			body := m.Body[:]
 			if e.consumeOpt.FnCallback != nil {
-				_ = e.consumeOpt.FnCallback(body)
+				e.consumeOpt.FnCallback(body)
 			}
 
 			// manual ack
