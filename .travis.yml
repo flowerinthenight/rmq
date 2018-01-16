@@ -12,4 +12,4 @@ go:
 
 before_install:
   - go get -v github.com/golang/dep
-  - dep ensure -v
+  - ${GOPATH}/bin/dep ensure -v
