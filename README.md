@@ -8,6 +8,19 @@ A simple wrapper to [streadway/amqp](https://github.com/streadway/amqp) for Rabb
 
 The library maintains a single connection and channel. It also maintains a map of bindings of exchanges and queues added by the user. Each binding can be configured to be a producer, a consumer, or both.
 
+The connection object can be initialized using the following code snippet:
+
+
+```go
+c := rmq.New(&rmq.Config{
+		Host:     os.Getenv("RABBITMQ_HOST"),
+		Port:     port,
+		Username: os.Getenv("RABBITMQ_USER"),
+		Password: os.Getenv("RABBITMQ_PASS"),
+		Vhost:    "/",
+})
+```
+
 See the [examples](./examples) directory for a simple implementation.
 
 ### License
