@@ -4,7 +4,7 @@
 
 A simple wrapper to [streadway/amqp](https://github.com/streadway/amqp) for RabbitMQ with support for auto reconnections.
 
-### Usage
+## Usage
 
 The library maintains a single connection and channel. It also maintains a map of bindings of exchanges and queues added by the user. Each binding can be configured to be a producer, a consumer, or both.
 
@@ -23,6 +23,6 @@ c := rmq.New(&rmq.Config{
 
 See the [examples](./examples) directory for a simple implementation.
 
-### License
+## License
 
 [The MIT License](./LICENSE.md)
