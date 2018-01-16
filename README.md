@@ -42,6 +42,8 @@ bindId, err := c.AddBinding(&rmq.BindConfig{
 		QueueBindOpt: &rmq.QueueBindOptions{
 			RoutingKey: "rk1",
 		},
+		// when `ConsumeOpt` is provided, this binding is able to receive messages from
+		// the specified exchange/queue
 		ConsumeOpt: &rmq.ConsumeOptions{
 			ClientTag:  "consumer1",
 			FnCallback: func (b []byte) error {
