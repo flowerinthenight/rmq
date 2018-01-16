@@ -2,6 +2,7 @@ package rmq
 
 import (
 	"fmt"
+	"log"
 	"math/rand"
 	"os"
 	"runtime"
@@ -11,13 +12,6 @@ import (
 	"github.com/satori/go.uuid"
 	"github.com/streadway/amqp"
 )
-
-const RECOVER_INTERVAL_TIME = 6 * 60
-
-// Simple interface for internal logging.
-type Logger interface {
-	Println(v ...interface{})
-}
 
 type ExchangeOptions struct {
 	Name       string
@@ -54,7 +48,6 @@ type ConsumeOptions struct {
 }
 
 type exchangeQueueBinding struct {
-	logger       Logger // should point to parent logger
 	tagPrefix    string // this + generated uuid as tag when queue name is generated
 	tempTag      string // this as tag when queue name is provided
 	exchangeOpt  *ExchangeOptions
@@ -63,14 +56,12 @@ type exchangeQueueBinding struct {
 	consumeOpt   *ConsumeOptions
 }
 
-// Setup exchange/queue bindings based on provided configs.
 func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 	// At the very least, we should have an exchange option to be able to send to an exchange.
 	if e.exchangeOpt == nil {
 		return fmt.Errorf("exchange option not provided")
 	}
 
-	e.logger.Println("[info] setup exchange:", e.exchangeOpt.Name, e.exchangeOpt.Type)
 	err := ch.ExchangeDeclare(
 		e.exchangeOpt.Name,       // name of the exchange
 		e.exchangeOpt.Type,       // type
@@ -82,7 +73,6 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 	)
 
 	if err != nil {
-		e.logger.Println("[error]", err)
 		return err
 	}
 
@@ -95,7 +85,6 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 		autoDelete = true
 	}
 
-	e.logger.Println("[info] setup queue:", e.queueOpt.QueueName)
 	queue, err := ch.QueueDeclare(
 		e.queueOpt.QueueName, // name of the queue
 		e.queueOpt.Durable,   // durable
@@ -106,7 +95,6 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 	)
 
 	if err != nil {
-		e.logger.Println("[error]", err)
 		return err
 	}
 
@@ -114,8 +102,8 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 		return fmt.Errorf("queue bind option not provided")
 	}
 
-	e.logger.Println(fmt.Sprintf("[info] queue (%q %d messages, %d consumers), binding to exchange (key %q)",
-		queue.Name, queue.Messages, queue.Consumers, e.queueBindOpt.RoutingKey))
+	log.Printf("[info] queue (%q %d messages, %d consumers), binding to exchange (key %q)",
+		queue.Name, queue.Messages, queue.Consumers, e.queueBindOpt.RoutingKey)
 
 	err = ch.QueueBind(
 		queue.Name,                // name of the queue
@@ -126,7 +114,6 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 	)
 
 	if err != nil {
-		e.logger.Println("[error]", err)
 		return err
 	}
 
@@ -143,7 +130,6 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 		tag = e.tagPrefix + fmt.Sprintf("_%s", uuid.NewV4())
 	}
 
-	e.logger.Println("[info] start consume:", tag)
 	d, err := ch.Consume(
 		queue.Name,             // name
 		tag,                    // client tag,
@@ -155,12 +141,10 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 	)
 
 	if err != nil {
-		e.logger.Println("[error]", err)
 		return err
 	}
 
 	go func() {
-		e.logger.Println("[info] start receive...")
 		for m := range d {
 			body := m.Body[:]
 			if e.consumeOpt.FnCallback != nil {
@@ -178,16 +162,15 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 }
 
 type Config struct {
-	Host     string
-	Port     int
-	Username string
-	Password string
-	Vhost    string
+	Host        string
+	Port        int
+	Username    string
+	Password    string
+	Vhost       string
+	AutoConnect bool
 }
 
-// Reconnect logic reference: https://gist.github.com/simpleton/9a2d4fde5c73af8f3f453df9747a86e5
 type RabbitMqBroker struct {
-	logger          Logger
 	config          *Config
 	conn            *amqp.Connection
 	channel         *amqp.Channel
@@ -197,9 +180,8 @@ type RabbitMqBroker struct {
 	bindings        map[string]*exchangeQueueBinding
 }
 
-func New(c *Config, logger Logger) *RabbitMqBroker {
+func New(c *Config) *RabbitMqBroker {
 	broker := &RabbitMqBroker{
-		logger:          logger,
 		config:          c,
 		done:            make(chan error),
 		lastRecoverTime: time.Now().Unix(),
@@ -225,53 +207,54 @@ func (b *RabbitMqBroker) Connect() error {
 	}.String()
 
 	var err error
+
 	b.conn, err = amqp.Dial(conf)
 	if err != nil {
-		b.logger.Println("[error]", err)
 		return err
 	}
 
-	go func() {
-		v, ok := <-b.conn.NotifyClose(make(chan *amqp.Error))
-		if v == nil && !ok {
-			runtime.Goexit()
-		}
-
-		b.logger.Println("[error] NotifyClose error:", v)
-		retry := 1
-
-		for {
-			b.Close()
-			time.Sleep(time.Duration(15+rand.Intn(60)+2*retry) * time.Second)
-			b.logger.Println("[info] try reconnect:", retry)
-
-			// try to reconnect
-			if err := b.Connect(); err != nil {
-				b.logger.Println("[error] retry:", retry, err)
-				retry += 1
-			} else {
-				b.logger.Println("[info] reconnect successful")
-				break
+	if b.config.AutoConnect {
+		go func() {
+			v, ok := <-b.conn.NotifyClose(make(chan *amqp.Error))
+			if v == nil && !ok {
+				runtime.Goexit()
 			}
-		}
-	}()
+
+			log.Println("[error] NotifyClose error:", v)
+			retry := 1
+
+			for {
+				b.Close()
+				time.Sleep(time.Duration(15+rand.Intn(60)+2*retry) * time.Second)
+				log.Println("[info] try reconnect:", retry)
+
+				// try to reconnect
+				if err := b.Connect(); err != nil {
+					log.Println("[error] retry:", retry, err)
+					retry += 1
+				} else {
+					log.Println("[info] reconnect successful")
+					break
+				}
+			}
+		}()
+	}
 
 	b.channel, err = b.conn.Channel()
 	if err != nil {
-		b.logger.Println("[error]", err)
 		return err
 	}
 
-	b.logger.Println("[info] connection established")
+	log.Println("[info] connection established")
 	b.currentStatus.Store(true)
 
 	// re-establish exchange-queue bindings
 	if len(b.bindings) > 0 {
 		for k, v := range b.bindings {
-			b.logger.Println("[info] resetup binding:", k, v)
+			log.Println("[info] resetup binding:", k, v)
 			err = v.setup(b.channel)
 			if err != nil {
-				b.logger.Println(nil)
+				return err
 			}
 		}
 	}
@@ -279,8 +262,14 @@ func (b *RabbitMqBroker) Connect() error {
 	return nil
 }
 
-// When 'consumeOpt' is not nil, this binding will be set to consume messages.
-func (b *RabbitMqBroker) AddBinding(exchangeOpt *ExchangeOptions, queueOpt *QueueOptions, queueBindOpt *QueueBindOptions, consumeOpt *ConsumeOptions) (string, error) {
+type BindConfig struct {
+	ExchangeOpt  *ExchangeOptions
+	QueueOpt     *QueueOptions
+	QueueBindOpt *QueueBindOptions
+	ConsumeOpt   *ConsumeOptions
+}
+
+func (b *RabbitMqBroker) AddBinding(bc *BindConfig) (string, error) {
 	name, err := os.Hostname()
 	if err != nil {
 		name = "sim"
@@ -289,17 +278,17 @@ func (b *RabbitMqBroker) AddBinding(exchangeOpt *ExchangeOptions, queueOpt *Queu
 	id := fmt.Sprintf("%s", uuid.NewV4())
 
 	var tagPrefix, tempTag string
-	if consumeOpt != nil {
-		tagPrefix = fmt.Sprintf("%s_%s", consumeOpt.ClientTag, name)
+
+	if bc.ConsumeOpt != nil {
+		tagPrefix = fmt.Sprintf("%s_%s", bc.ConsumeOpt.ClientTag, name)
 		tempTag = fmt.Sprintf("%s_%s", tagPrefix, id)
 	}
 
 	b.bindings[id] = &exchangeQueueBinding{
-		logger:       b.logger,
-		exchangeOpt:  exchangeOpt,
-		queueOpt:     queueOpt,
-		queueBindOpt: queueBindOpt,
-		consumeOpt:   consumeOpt,
+		exchangeOpt:  bc.ExchangeOpt,
+		queueOpt:     bc.QueueOpt,
+		queueBindOpt: bc.QueueBindOpt,
+		consumeOpt:   bc.ConsumeOpt,
 		tagPrefix:    tagPrefix,
 		tempTag:      tempTag,
 	}
@@ -307,7 +296,6 @@ func (b *RabbitMqBroker) AddBinding(exchangeOpt *ExchangeOptions, queueOpt *Queu
 	v, _ := b.bindings[id]
 	err = v.setup(b.channel)
 	if err != nil {
-		b.logger.Println("[error]", err)
 		return "", err
 	}
 
