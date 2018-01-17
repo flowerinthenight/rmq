@@ -25,11 +25,13 @@ func main() {
 	}
 
 	b := rmq.New(&rmq.Config{
-		Host:     os.Getenv("RABBITMQ_HOST"),
-		Port:     port,
-		Username: os.Getenv("RABBITMQ_USER"),
-		Password: os.Getenv("RABBITMQ_PASS"),
-		Vhost:    "/",
+		Host:          os.Getenv("RABBITMQ_HOST"),
+		Port:          port,
+		Username:      os.Getenv("RABBITMQ_USER"),
+		Password:      os.Getenv("RABBITMQ_PASS"),
+		Vhost:         "/",
+		AutoReconnect: true,
+		ExitOnErr:     true,
 	})
 
 	err = b.Connect()
@@ -44,15 +46,13 @@ func main() {
 	// The return string is the binding id.
 	bindId, err := b.AddBinding(&rmq.BindConfig{
 		ExchangeOpt: &rmq.ExchangeOptions{
-			Name:       "test-exchange",
-			Type:       "direct",
-			Durable:    false,
-			AutoDelete: true,
+			Name:    "test-exchange",
+			Type:    "direct",
+			Durable: true,
 		},
 		QueueOpt: &rmq.QueueOptions{
-			QueueName:  "queue1",
-			Durable:    false,
-			AutoDelete: true,
+			QueueName: "queue1",
+			Durable:   true,
 		},
 		QueueBindOpt: &rmq.QueueBindOptions{
 			RoutingKey: "rk1",
@@ -67,11 +67,15 @@ func main() {
 
 	go func() {
 		for {
-			b.Send(
+			err := b.Send(
 				bindId, // binding id to send to
 				"rk1",  // route key
 				[]byte(fmt.Sprintf("for qtest1: %s", time.Now().String())), // message
 			)
+
+			if err != nil {
+				log.Fatalf("send failed: %v, quit", err)
+			}
 
 			time.Sleep(1 * time.Second)
 		}

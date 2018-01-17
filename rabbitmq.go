@@ -48,12 +48,18 @@ type ConsumeOptions struct {
 }
 
 type exchangeQueueBinding struct {
-	tagPrefix    string // this + generated uuid as tag when queue name is generated
-	tempTag      string // this as tag when queue name is provided
-	exchangeOpt  *ExchangeOptions
-	queueOpt     *QueueOptions
-	queueBindOpt *QueueBindOptions
-	consumeOpt   *ConsumeOptions
+	exitOnErr      bool         // passed from parent
+	isConsumer     atomic.Value // binding is consumer
+	autoReconnect  bool         // should be passed from parent
+	checker        atomic.Value // queue inspect is running?
+	checkquit      chan bool    // `checker` terminate channel
+	queueThreshold int          // passed from parent
+	tagPrefix      string       // this + generated uuid as tag when queue name is generated
+	tempTag        string       // this as tag when queue name is provided
+	exchangeOpt    *ExchangeOptions
+	queueOpt       *QueueOptions
+	queueBindOpt   *QueueBindOptions
+	consumeOpt     *ConsumeOptions
 }
 
 func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
@@ -117,6 +123,55 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 		return err
 	}
 
+	if !e.checker.Load().(bool) {
+		thresholdErrCount := 0
+		tc := time.NewTicker(time.Second * 2).C
+
+		go func() {
+			time.Sleep(time.Second * 20)
+			for {
+				select {
+				case <-tc:
+					q, err := ch.QueueInspect(queue.Name)
+					if err != nil {
+						if e.exitOnErr {
+							log.Fatalf("[error] queue inspect failed: %v, quit", err)
+						} else {
+							log.Printf("[error] queue inspect failed: %v", err)
+						}
+					}
+
+					if err == nil {
+						log.Printf("[check] queue %q (%d messages, %d consumers)",
+							q.Name,
+							q.Messages,
+							q.Consumers)
+
+						if q.Consumers == 0 {
+							// if we are consumer and 0 consumers, something is wrong with this queue
+							if e.isConsumer.Load().(bool) {
+								log.Fatalf("[error] own consumer (self) not detected, quit")
+							}
+
+							if q.Messages >= e.queueThreshold {
+								thresholdErrCount += 1
+								if thresholdErrCount >= 5 {
+									log.Printf("[warn] queue has %d messages, 0 consumers", q.Messages)
+								}
+							}
+						} else {
+							thresholdErrCount = 0
+						}
+					}
+				case <-e.checkquit:
+					break
+				}
+			}
+		}()
+
+		e.checker.Store(true)
+	}
+
 	if e.consumeOpt == nil {
 		return nil
 	}
@@ -162,28 +217,45 @@ func (e *exchangeQueueBinding) setup(ch *amqp.Channel) error {
 }
 
 type Config struct {
-	Host        string
-	Port        int
-	Username    string
-	Password    string
-	Vhost       string
-	AutoConnect bool
+	Host     string
+	Port     int
+	Username string
+	Password string
+	Vhost    string
+
+	// AutoReconnect, if true, will attempt to listen to connection state channels and
+	// will reconnect to server using current configurations.
+	AutoReconnect bool
+
+	// QueueThreshold is the max number of messages in the queue in which we consider
+	// something is wrong, i.e. no consumer(s) is(are) draining on the other side.
+	QueueThreshold int
+
+	// ExitOnErr, if true, will cause this lib's client(s) to terminate using log.Fatal(f).
+	// This is useful when one doesn't need to utilize the autoreconnection routine and
+	// rely on the environment (i.e. Kubernetes) to restart the application.
+	ExitOnErr bool
 }
 
 type RabbitMqBroker struct {
 	config          *Config
 	conn            *amqp.Connection
 	channel         *amqp.Channel
-	done            chan error
+	done            chan bool
 	lastRecoverTime int64
 	currentStatus   atomic.Value
 	bindings        map[string]*exchangeQueueBinding
 }
 
 func New(c *Config) *RabbitMqBroker {
+	if c.QueueThreshold == 0 {
+		// our default threshold if not specified
+		c.QueueThreshold = 100
+	}
+
 	broker := &RabbitMqBroker{
 		config:          c,
-		done:            make(chan error),
+		done:            make(chan bool),
 		lastRecoverTime: time.Now().Unix(),
 		bindings:        make(map[string]*exchangeQueueBinding),
 	}
@@ -191,6 +263,8 @@ func New(c *Config) *RabbitMqBroker {
 	broker.currentStatus.Store(false)
 	return broker
 }
+
+func (b *RabbitMqBroker) isUp() bool { return b.currentStatus.Load().(bool) }
 
 func (b *RabbitMqBroker) Connect() error {
 	if b.config == nil {
@@ -213,18 +287,25 @@ func (b *RabbitMqBroker) Connect() error {
 		return err
 	}
 
-	if b.config.AutoConnect {
+	if b.config.AutoReconnect {
 		go func() {
 			v, ok := <-b.conn.NotifyClose(make(chan *amqp.Error))
 			if v == nil && !ok {
+				log.Println("[info] normal notifyclose, quit goroutine")
 				runtime.Goexit()
 			}
 
-			log.Println("[error] NotifyClose error:", v)
+			log.Printf("[error] notifyclose error: %v", v)
+			if b.config.ExitOnErr {
+				time.Sleep(time.Second * 5)
+				log.Fatalf("[error] notifyclose error: %v", v)
+			}
+
 			retry := 1
 
 			for {
 				b.Close()
+
 				time.Sleep(time.Duration(15+rand.Intn(60)+2*retry) * time.Second)
 				log.Println("[info] try reconnect:", retry)
 
@@ -251,7 +332,7 @@ func (b *RabbitMqBroker) Connect() error {
 	// re-establish exchange-queue bindings
 	if len(b.bindings) > 0 {
 		for k, v := range b.bindings {
-			log.Println("[info] resetup binding:", k, v)
+			log.Printf("[info] resetup binding: %v, %+v", k, v)
 			err = v.setup(b.channel)
 			if err != nil {
 				return err
@@ -285,14 +366,20 @@ func (b *RabbitMqBroker) AddBinding(bc *BindConfig) (string, error) {
 	}
 
 	b.bindings[id] = &exchangeQueueBinding{
-		exchangeOpt:  bc.ExchangeOpt,
-		queueOpt:     bc.QueueOpt,
-		queueBindOpt: bc.QueueBindOpt,
-		consumeOpt:   bc.ConsumeOpt,
-		tagPrefix:    tagPrefix,
-		tempTag:      tempTag,
+		exitOnErr:      b.config.ExitOnErr,
+		autoReconnect:  b.config.AutoReconnect,
+		checkquit:      make(chan bool),
+		queueThreshold: b.config.QueueThreshold,
+		exchangeOpt:    bc.ExchangeOpt,
+		queueOpt:       bc.QueueOpt,
+		queueBindOpt:   bc.QueueBindOpt,
+		consumeOpt:     bc.ConsumeOpt,
+		tagPrefix:      tagPrefix,
+		tempTag:        tempTag,
 	}
 
+	b.bindings[id].checker.Store(false)
+	b.bindings[id].isConsumer.Store(false)
 	v, _ := b.bindings[id]
 	err = v.setup(b.channel)
 	if err != nil {
@@ -302,10 +389,23 @@ func (b *RabbitMqBroker) AddBinding(bc *BindConfig) (string, error) {
 	return id, nil
 }
 
-func (b *RabbitMqBroker) Send(id, key string, payload []byte) error {
+// Send publishes a message payload using the binding indicated by `id`. An optional
+// content type mime can be provided with the default value of "text/plain".
+func (b *RabbitMqBroker) Send(id, key string, payload []byte, ct ...string) error {
+	/*
+		if !b.isUp() {
+			return fmt.Errorf("connection is closed")
+		}
+	*/
+
 	bind, ok := b.bindings[id]
 	if !ok {
 		return fmt.Errorf("binding not found")
+	}
+
+	contentType := "text/plain"
+	if len(ct) > 0 {
+		contentType = ct[0]
 	}
 
 	return b.channel.Publish(bind.exchangeOpt.Name,
@@ -313,7 +413,7 @@ func (b *RabbitMqBroker) Send(id, key string, payload []byte) error {
 		false,
 		false,
 		amqp.Publishing{
-			ContentType: "text/plain",
+			ContentType: contentType,
 			Body:        payload,
 		},
 	)
@@ -326,6 +426,12 @@ type SendConfig struct {
 }
 
 func (b *RabbitMqBroker) SendWithConfig(id, key string, sc SendConfig) error {
+	/*
+		if !b.isUp() {
+			return fmt.Errorf("connection is closed")
+		}
+	*/
+
 	bind, ok := b.bindings[id]
 	if !ok {
 		return fmt.Errorf("binding not found")
@@ -348,4 +454,6 @@ func (b *RabbitMqBroker) Close() {
 		b.conn.Close()
 		b.conn = nil
 	}
+
+	b.currentStatus.Store(false)
 }
