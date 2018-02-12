@@ -81,7 +81,3 @@ c.Send(bindId, "rk1", []byte("hello world"))
 ```
 
 See the [examples](./examples) directory for a simple receiver/sender implementation.
-
-## License
-
-[The MIT License](./LICENSE.md)
