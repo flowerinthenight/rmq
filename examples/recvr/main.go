@@ -23,7 +23,7 @@ func main() {
 	}
 
 	b := rmq.New(&rmq.Config{
-		Host:          os.Getenv("RABBITMQ_HOST"),
+		Host:          "ab117949d04c711e89cf1064c325d317-130147115.ap-northeast-1.elb.amazonaws.com",
 		Port:          port,
 		Username:      os.Getenv("RABBITMQ_USER"),
 		Password:      os.Getenv("RABBITMQ_PASS"),

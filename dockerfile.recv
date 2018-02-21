@@ -1,0 +1,16 @@
+FROM golang
+ARG version
+COPY examples/ /go/src/github.com/flowerinthenight/rmq/examples/
+COPY vendor/ /go/src/github.com/flowerinthenight/rmq/vendor/
+COPY rabbitmq.go /go/src/github.com/flowerinthenight/rmq/rabbitmq.go
+WORKDIR /go/src/github.com/flowerinthenight/rmq/examples/recvr/
+RUN CGO_ENABLED=0 GOOS=linux go build -v -a -installsuffix cgo -o recvr .
+
+FROM alpine:3.7
+# Note that these env variables are visible via `docker history`, 'docker inspect`.
+# Never upload to public registry; only ECR (current).
+RUN apk --no-cache add ca-certificates
+ENV RABBITMQ_HOST=rmqdev-rabbitmq-ha.default.svc.cluster.local RABBITMQ_PORT=5672 RABBITMQ_USER=admin RABBITMQ_PASS=q8qdyaRf9SQu38aDTjTB
+WORKDIR /recvr/
+COPY --from=0 /go/src/github.com/flowerinthenight/rmq/examples/recvr/recvr .
+ENTRYPOINT ["/recvr/recvr"]
